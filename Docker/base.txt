@@ -1,0 +1,5 @@
+docker exec mysql-latest mysqldump -u root -p -B test test1 -h127.0.0.1 > ./bak.sql
+
+docker exec mysql-latest mysql -u root -p
+
+docker exec -it mysql-latest mysql -u root -p
