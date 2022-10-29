@@ -1,0 +1,15 @@
+todo-list  10-27
+
+0. redis  ok
+0-1 了解 context ok
+0-2  logrus ok
+1. jwt midd
+1-2.	permission & role
+2. test pub private router
+3. user api 
+
+todo-list  10-29
+
+1.	permission & role
+2. test pub private router
+3. user api 
