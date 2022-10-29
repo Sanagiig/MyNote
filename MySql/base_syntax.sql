@@ -179,7 +179,6 @@ UPDATE `test3` SET birthday = '2020-11-2' WHERE name='xixi'
 UPDATE `test3` SET name = CONCAT(name,'qq') ,birthday = '1990-11-11' WHERE name='xixi'
 UPDATE `test3` SET name = REPLACE(name,'qq','') 
 
-
 -- DELETE
 # NULL 值必须用 IS 判断
 DELETE FROM `test3` WHERE name IS NULL
@@ -378,6 +377,7 @@ INSERT INTO employee_copy (name,job,sal,comm,deptno,id)
 SELECT DISTINCT name,job,sal,comm,deptno,id FROM employee_copy2
 DROP TABLE employee_copy2
 
+flush privileges; #操作完后重新刷新权限
 # 总结
 -- 整体结构
 SELECT COUNT(*) as totalNum,deptno,MAX(sal) as msal FROM employee 
@@ -491,6 +491,204 @@ SELECT case WHEN NULL THEN 1 ELSE 3 END
 SELECT IFNULL(null,'ma')
 
 
+# 存储过程和函数 start ----------------------------------------------
+-- 事先编译并存储再数据库中的一段SQL的集合
+
+# 查看所有数据库的存储过程
+SHOW PROCEDURE STATUS;
+
+# 查看存储过程代码
+SHOW CREATE PROCEDURE empSel;
+
+# DELIMITER 定义分隔符 （默认 ;）
+DELIMITER $$
+# 新建存储过程
+CREATE PROCEDURE PROCEDURE_name ([...[IN| OUT | INOUT ] proc_parameter])
+BEGIN
+	-- 以@符号开头的变量是会话变量。直到会话结束前它可用和可访问
+	DECLARE var1 VARCHAR(20) DEFAULT "";
+	# if
+	IF arg > 200 THEN
+	-- sql
+	ELSEIF arg >300 THEN
+	-- sql
+	END IF
+	
+	CASE  case_expression
+   WHEN 'aaa' THEN commands
+   WHEN 'bbb' THEN commands
+	 ELSE commands
+	END CASE
+	
+	# 循环
+	WHILE x > 5 DO
+	 -- sql
+	END WHILE;
+
+	REPEAT
+		statements;
+		UNTIL x = 5
+	END REPEAT
+	
+	loop_label:  LOOP
+ IF  x > 10 THEN 
+	LEAVE  loop_label; -- 跳出循环
+ END  IF;
+
+ SET  x = x + 1;
+ IF (x mod 2) THEN
+  ITERATE  loop_label; -- 重新循环 相当于 continue
+ END  IF;
+
+END
+# 调用
+CALL PROCEDURE_name();
+# 删除
+DROP PROCEDURE IF EXISTS empSel;
+
+	DECLARE email_cursor CURSOR FOR SELECT_statement; -- 声明游标
+  -- declare NOT FOUND handler
+	DECLARE CONTINUE HANDLER 
+	FOR NOT FOUND SET finished = 1;
+
+	OPEN email_cursor; -- 打开游标
+	# 取出所有 email 并拼接
+	get_email: LOOP
+	 FETCH email_cursor INTO v_email;
+	 IF v_finished = 1 THEN 
+		LEAVE get_email;
+	 END IF;
+	 -- build email list
+	 SET email_list = CONCAT(v_email,";",email_list);
+	END LOOP get_email;
+	-- 游标：存储查询的结果集
+	-- -- 1.游标声明必须在变量声明之后
+
+	DECLARE cursor_name CURSOR FOR -- 创建游标
+	
+	FETCH cursor_name INTO variables list; -- 检索光标指向的下一行，并将光标移动到结果集中的下一行。
+	CLOSE cursor_name;
+
+# 存储过程栗子
+DROP PROCEDURE IF EXISTS empSel;
+CREATE PROCEDURE empSel(in ename VARCHAR(30), OUT esal INT)
+BEGIN
+	DECLARE var1 VARCHAR(20) DEFAULT "";
+	SELECT sal INTO esal  from employee WHERE name = ename;
+END;
+CALL empSel('小明1',@sal);
+SELECT @sal;
+
+# 使用游标 栗子
+DROP PROCEDURE IF EXISTS cursor_use;
+CREATE PROCEDURE cursor_use(INOUT ename VARCHAR(100))
+BEGIN
+	DECLARE e VARCHAR(100);
+	DECLARE v_name VARCHAR(20);
+	DECLARE done INT DEFAULT 1;
+	
+	
+	DECLARE employee_cursor CURSOR FOR SELECT `name` FROM employee;
+	# 游标边界检测事件
+	DECLARE EXIT HANDLER FOR NOT FOUND SET done = 0;
+	
+
+	OPEN employee_cursor;
+
+	get_name: LOOP
+		FETCH employee_cursor INTO v_name;
+		
+		IF done = 0 THEN
+			LEAVE get_name;
+		END IF;
+		SET ename = CONCAT(ename,';',v_name);
+		
+	END LOOP get_name;
+
+	CLOSE employee_cursor;
+
+END;
+
+CALL cursor_use(@nameStr);
+SELECT @nameStr;
+
+
+
+
+
+
+
+# 触发器 start ----------------------------------------------
+# 只支持行级触发器
+# 在触发器中的语句可以使用以下变量，old & new 表示行数据
+-- INSERT : new 表示将要新增或者已经新增的数据
+-- UPDATE : old 表示修改前的数据，new 表示将要或者修改后的数据
+-- DELETE : old 表示将要或者已经删除的数据
+
+CREATE TRIGGER tri_name BEFORE | AFTER [INSERT | UPDATE | DELETE] ON tb [FOR EACH ROW] 
+BEGIN
+	-- sql
+END;
+
+#栗子
+CREATE TABLE log(
+	info VARCHAR(100)
+)
+CREATE TRIGGER emp_tri BEFORE UPDATE ON employee FOR EACH ROW
+BEGIN
+	INSERT INTO log(info) VALUES(CONCAT('修改了',old.name ,'的数据',NOW()));
+END;
+UPDATE employee SET sal = sal +1 WHERE id = 1;
+
+SHOW TRIGGERS; -- 查看触发器
+DROP TRIGGER emp_tri; -- 删除触发器
+
+
+
+
+
+# 事件 start ----------------------------------------------
+CREATE
+    [DEFINER = user]
+    EVENT
+    [IF NOT EXISTS]
+    event_name
+    ON SCHEDULE schedule
+    [ON COMPLETION [NOT] PRESERVE]
+    [ENABLE | DISABLE | DISABLE ON SLAVE]
+    [COMMENT 'string']
+    DO event_body;
+ 
+schedule:
+    AT timestamp [+ INTERVAL interval] ...
+  | EVERY interval
+    [STARTS timestamp [+ INTERVAL interval] ...]
+    [ENDS timestamp [+ INTERVAL interval] ...]
+ 
+interval:
+    quantity {YEAR | QUARTER | MONTH | DAY | HOUR | MINUTE |
+              WEEK | SECOND | YEAR_MONTH | DAY_HOUR | DAY_MINUTE |
+              DAY_SECOND | HOUR_MINUTE | HOUR_SECOND | MINUTE_SECOND}
+
+
+
+SHOW VARIABLES LIKE '%event_%';
+SHOW EVENTS;
+SHOW CREATE EVENT per_5s; -- 查看事件详细信息（sql）
+
+
+CREATE EVENT IF NOT EXISTS evn_name 
+	ON SCHEDULE AT CURRENT_TIMESTAMP + INTERVAL 10 SECOND
+	COMMENT '当前时间10S之后更新记录'
+	DO INSERT INTO log SET info =  CONCAT(NOW(),'evn_name ++ ') ;
+
+CREATE EVENT IF NOT EXISTS per_5s 
+	ON SCHEDULE EVERY 5 SECOND
+	COMMENT '每5S 更新记录'
+	DO INSERT INTO log SET info =  CONCAT(NOW(),'每5S 更新记录') ;
+	
+DROP EVENT per_5s;
+
 # 事务 start ----------------------------------------------
 # 事务是用于保证数据的一致性，它由一组相关的dml语句组成，该组的dml语句要么全部成功，要么全部失败。
 # 事务在提交之前，只有当前会话能够查看到生效
@@ -595,4 +793,3 @@ GRANT SELECT,INSERT  ON test.ttt TO 'test'@'localhost' WITH GRANT OPTION; -- 多
 GRANT ALL PRIVILEGES ON *.* TO 'test'@'localhost' WITH GRANT OPTION;
 REVOKE ALL PRIVILEGES ON *.* FROM 'test'@'localhost'; -- 收回权限
 REVOKE GRANT OPTION ON *.* FROM user_name; #收回赋权权限
-flush privileges; #操作完后重新刷新权限
